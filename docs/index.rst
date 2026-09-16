@@ -8,6 +8,5 @@ SpaRMA integrates multiple spatial transcriptomics slices using masked spot reco
    :caption: Contents
 
    installation
-   input
    tutorials
    api

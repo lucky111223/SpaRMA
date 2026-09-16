@@ -18,29 +18,11 @@ Install a PyTorch build appropriate for the local CUDA version before installing
 
 For the complete notebooks, create the tested Conda environment with `conda env create -f environment.yml`, or install the tutorial dependencies with `pip install -e ".[tutorial]"`. DLPFC clustering with mclust additionally requires R, the R package `mclust`, and `rpy2`.
 
-## Input
-
-SpaRMA accepts either a prepared multi-slice `.h5ad` file or slice-level files assembled by the tutorial notebooks. The training object contains:
-
-- `adata.X`: normalized and log-transformed shared-gene matrix;
-- `adata.obsm["spatial"]`: spatial coordinates;
-- `adata.obs["batch_name"]`: slice or training-group identifier.
-
-Manual spatial-domain annotations are not read during training.
-
 ## Tutorials
 
-The `Tutorials/` directory contains complete notebooks for four-slice DLPFC, 12-slice DLPFC, and mouse embryo integration. They cover data loading, preprocessing, spatial-graph construction, model training, post-training clustering and visualization, and saving the integrated object.
+The `Tutorials/` directory contains complete notebooks for four-slice DLPFC, 12-slice DLPFC, and mouse embryo integration. They cover data loading, preprocessing, spatial-graph construction, model training, clustering, and visualization.
 
 Documentation source files are provided in `docs/` and can be built with Sphinx or connected directly to Read the Docs.
-
-## Output
-
-The integrated 30-dimensional representation is written to `adata.obsm["SpaRMA"]`. Training settings and the final calibrated margin are stored in `adata.uns["SpaRMA"]`.
-
-## Reproducibility
-
-The repository contains no expression matrices, annotations, checkpoints, or private paths. Obtain DLPFC data from spatialLIBD and mouse embryo data from MOSTA, then prepare a combined AnnData object with the fields described above.
 
 ## Citation
 
