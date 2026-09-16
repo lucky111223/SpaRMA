@@ -1,1 +1,0 @@
-{"radius":150,"batch_key":"batch_name","hidden_dim":512,"latent_dim":30,"pretrain_epochs":500,"joint_epochs":500,"mask_rate":0.10,"dropout":0.05,"learning_rate":0.001,"weight_decay":0.0001,"refresh_interval":100,"positive_k":15,"mnn_k":100,"base_margin":1.0,"seed":0}

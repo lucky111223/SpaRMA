@@ -1,21 +1,20 @@
-import argparse, json
+import argparse
 from pathlib import Path
 import anndata as ad
 import numpy as np
 from .graph import spatial_edges
-from .training import SpaRMAConfig, fit
+from .presets import get_preset
+from .training import fit
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--config", required=True, type=Path)
+    parser.add_argument("--preset", required=True, choices=["dlpfc4", "dlpfc12", "mouse_embryo"])
     args = parser.parse_args()
-    cfg_raw = json.loads(args.config.read_text(encoding="utf-8"))
-    radius = cfg_raw.pop("radius")
-    batch_key = cfg_raw.pop("batch_key", "batch_name")
-    cfg = SpaRMAConfig(**cfg_raw)
+    preset = get_preset(args.preset)
+    radius, batch_key, cfg = preset.radius, preset.batch_key, preset.training
     adata = ad.read_h5ad(args.input)
     edges = spatial_edges(adata.obsm["spatial"], adata.obs[batch_key].astype(str), radius)
     x = adata.X.toarray() if hasattr(adata.X, "toarray") else np.asarray(adata.X)
