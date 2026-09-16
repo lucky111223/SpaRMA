@@ -43,10 +43,19 @@ def _sample_masked_spots(batches, rate, seed, epoch, device):
     return torch.as_tensor(sorted(selected), dtype=torch.long, device=device)
 
 
-def fit(x, edge_index, batches, config: SpaRMAConfig, device=None):
+def fit(
+    x,
+    edge_index,
+    batches,
+    config: SpaRMAConfig,
+    device=None,
+    alignment_batches=None,
+    batch_pairs=None,
+):
     _seed(config.seed)
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     x = torch.as_tensor(np.asarray(x), dtype=torch.float32, device=device)
+    alignment_batches = batches if alignment_batches is None else alignment_batches
     edge_index = edge_index.to(device)
     model = SpatialGraphAutoencoder(x.shape[1], config.hidden_dim, config.latent_dim, config.dropout).to(device)
     mask_token = torch.nn.Parameter(torch.zeros(1, x.shape[1], device=device))
@@ -68,8 +77,14 @@ def fit(x, edge_index, batches, config: SpaRMAConfig, device=None):
         z, reconstructed = model(x, edge_index)
         if epoch % config.refresh_interval == 0:
             z_np = z.detach().cpu().numpy()
-            anchors, positives, valid_np = build_candidates(z_np, batches, config.positive_k, config.mnn_k)
-            negatives = sample_negatives(anchors, batches, rng)
+            anchors, positives, valid_np = build_candidates(
+                z_np,
+                alignment_batches,
+                config.positive_k,
+                config.mnn_k,
+                batch_pairs=batch_pairs,
+            )
+            negatives = sample_negatives(anchors, alignment_batches, rng)
             anchor_i = torch.as_tensor(anchors, device=device)
             positive_i = torch.as_tensor(positives, device=device)
             negative_i = torch.as_tensor(negatives, device=device)

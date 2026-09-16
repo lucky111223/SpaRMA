@@ -42,8 +42,7 @@ def build_candidates(embedding, batches, positive_k, mnn_k, batch_pairs=None):
     anchors, rows = [], []
     for anchor, candidates in groups.items():
         unique = np.array(list(dict.fromkeys(candidates)), dtype=int)
-        dist = np.linalg.norm(embedding[unique] - embedding[anchor], axis=1)
-        anchors.append(anchor); rows.append(unique[np.argsort(dist)[:positive_k]])
+        anchors.append(anchor); rows.append(unique[:positive_k])
     if not anchors:
         raise RuntimeError("No cross-slice MNN correspondences were found")
     width = max(len(row) for row in rows)
