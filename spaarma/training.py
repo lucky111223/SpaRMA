@@ -1,4 +1,5 @@
 from dataclasses import asdict, dataclass
+import hashlib
 import random
 import numpy as np
 import torch
@@ -28,6 +29,20 @@ def _seed(seed):
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
 
 
+def _sample_masked_spots(batches, rate, seed, epoch, device):
+    batches = np.asarray(batches)
+    selected = []
+    for batch_code, batch in enumerate(dict.fromkeys(batches.tolist())):
+        indices = np.flatnonzero(batches == batch)
+        digest = hashlib.blake2b(
+            f"{seed}|{epoch}|{batch_code}".encode("utf-8"), digest_size=8
+        ).digest()
+        rng = np.random.default_rng(int.from_bytes(digest, byteorder="little"))
+        count = max(1, round(rate * len(indices)))
+        selected.extend(rng.permutation(indices)[:count].tolist())
+    return torch.as_tensor(sorted(selected), dtype=torch.long, device=device)
+
+
 def fit(x, edge_index, batches, config: SpaRMAConfig, device=None):
     _seed(config.seed)
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,11 +51,11 @@ def fit(x, edge_index, batches, config: SpaRMAConfig, device=None):
     model = SpatialGraphAutoencoder(x.shape[1], config.hidden_dim, config.latent_dim, config.dropout).to(device)
     mask_token = torch.nn.Parameter(torch.zeros(1, x.shape[1], device=device))
     optimizer = torch.optim.Adam(list(model.parameters()) + [mask_token], lr=config.learning_rate, weight_decay=config.weight_decay)
-    generator = torch.Generator(device=device).manual_seed(config.seed)
-    count = max(1, round(config.mask_rate * len(x)))
     model.train()
-    for _ in range(config.pretrain_epochs):
-        selected = torch.randperm(len(x), generator=generator, device=device)[:count]
+    for epoch in range(config.pretrain_epochs):
+        selected = _sample_masked_spots(
+            batches, config.mask_rate, config.seed, epoch, device
+        )
         masked = x.clone(); masked[selected] = mask_token
         _, reconstructed = model(masked, edge_index, zero_latent_rows=selected)
         loss = F.mse_loss(reconstructed[selected], x[selected])

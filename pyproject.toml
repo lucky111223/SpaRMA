@@ -25,6 +25,8 @@ tutorial = [
   "pandas>=1.5",
   "matplotlib>=3.6",
   "jupyterlab>=4",
+  "scikit-misc>=0.2",
+  "louvain>=0.8",
   "leidenalg>=0.10",
   "igraph>=0.10"
 ]

@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from spaarma.alignment import PositiveAttention, calibrate_margin, weighted_triplet
 from spaarma.model import SpatialGraphAutoencoder
-from spaarma.training import SpaRMAConfig, fit
+from spaarma.training import SpaRMAConfig, _sample_masked_spots, fit
 
 model = SpatialGraphAutoencoder(4, 8, 3, 0.0)
 x = torch.randn(5, 4)
@@ -29,4 +29,8 @@ embedding, settings, _ = fit(
 )
 assert embedding.shape == (6, 3) and np.isfinite(embedding).all()
 assert np.isfinite(settings["final_margin"])
+selected = _sample_masked_spots(
+    np.array(["s1"] * 10 + ["s2"] * 20), 0.2, 7, 3, "cpu"
+).numpy()
+assert np.sum(selected < 10) == 2 and np.sum(selected >= 10) == 4
 print("core_tests=PASS")
