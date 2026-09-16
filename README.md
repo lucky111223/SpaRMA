@@ -16,6 +16,8 @@ pip install -e .
 
 Install a PyTorch build appropriate for the local CUDA version before installing PyTorch Geometric when GPU acceleration is required.
 
+For the complete notebooks, create the tested Conda environment with `conda env create -f environment.yml`, or install the tutorial dependencies with `pip install -e ".[tutorial]"`. DLPFC clustering with mclust additionally requires R, the R package `mclust`, and `rpy2`.
+
 ## Input
 
 SpaRMA accepts either a prepared multi-slice `.h5ad` file or slice-level files assembled by the tutorial notebooks. The training object contains:

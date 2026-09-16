@@ -20,6 +20,15 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+tutorial = [
+  "scanpy>=1.9",
+  "pandas>=1.5",
+  "matplotlib>=3.6",
+  "jupyterlab>=4",
+  "leidenalg>=0.10",
+  "igraph>=0.10"
+]
+mclust = ["rpy2>=3.5"]
 
 [tool.setuptools.packages.find]
 include = ["spaarma*"]
