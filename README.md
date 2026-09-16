@@ -6,8 +6,6 @@ SpaRMA integrates multiple spatial transcriptomics slices with two training stag
 
 Stage I replaces complete spot profiles with a learned mask token, zeros the corresponding latent rows before decoding, and evaluates mean squared reconstruction error only on masked spots. Stage II restores the clean input, refreshes mutual-nearest-neighbor correspondences, weights up to `K` positive candidates with trainable query and key projections, and jointly optimizes reconstruction and attention-weighted triplet loss.
 
-The graph auto-encoder follows the STAligner framework. SpaRMA adds the two-stage masking workflow and multi-positive attention alignment used in the accompanying manuscript.
-
 ## Installation
 
 ```bash
@@ -20,7 +18,7 @@ Install a PyTorch build appropriate for the local CUDA version before installing
 
 ## Input
 
-Each example accepts one `.h5ad` file containing all slices after preprocessing:
+SpaRMA accepts either a prepared multi-slice `.h5ad` file or slice-level files assembled by the tutorial notebooks. The training object contains:
 
 - `adata.X`: normalized and log-transformed shared-gene matrix;
 - `adata.obsm["spatial"]`: spatial coordinates;
@@ -30,7 +28,7 @@ Manual spatial-domain annotations are not read during training.
 
 ## Tutorials
 
-The `Tutorials/` directory contains notebooks for four-slice DLPFC, 12-slice DLPFC, and mouse embryo integration. Each tutorial loads a prepared AnnData object, selects the corresponding verified preset, trains SpaRMA, and stores the integrated embedding.
+The `Tutorials/` directory contains complete notebooks for four-slice DLPFC, 12-slice DLPFC, and mouse embryo integration. They cover data loading, preprocessing, spatial-graph construction, model training, post-training clustering and visualization, and saving the integrated object.
 
 Documentation source files are provided in `docs/` and can be built with Sphinx or connected directly to Read the Docs.
 
@@ -44,4 +42,4 @@ The repository contains no expression matrices, annotations, checkpoints, or pri
 
 ## Citation
 
-Please cite the SpaRMA manuscript and STAligner when using this implementation.
+Citation information for SpaRMA is provided in `CITATION.cff`.

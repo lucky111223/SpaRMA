@@ -1,10 +1,11 @@
 Tutorials
 =========
 
-The repository includes three executable notebooks:
+The tutorials show the complete workflow from slice-level input through preprocessing, spatial-graph construction, two-stage training, post-training analysis, and saving the integrated object.
 
-* ``Tutorials/Tutorial_DLPFC4.ipynb``
-* ``Tutorials/Tutorial_DLPFC12.ipynb``
-* ``Tutorials/Tutorial_Mouse_Embryo.ipynb``
+.. toctree::
+   :maxdepth: 1
 
-Each notebook uses a verified dataset preset, constructs within-slice spatial graphs, trains the two stages, and writes the integrated representation to ``obsm['SpaRMA']``.
+   tutorials/Tutorial_DLPFC4
+   tutorials/Tutorial_DLPFC12
+   tutorials/Tutorial_Mouse_Embryo

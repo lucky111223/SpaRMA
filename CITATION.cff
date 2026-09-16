@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: SpaRMA
-message: Please cite the accompanying SpaRMA manuscript and STAligner.
+message: Please cite the accompanying SpaRMA manuscript when using this software.
 type: software
 version: 0.1.0
 date-released: 2026-09-16
