@@ -1,4 +1,5 @@
-from collections import defaultdict
+import hashlib
+import networkx as nx
 import numpy as np
 import torch
 from torch import nn
@@ -16,8 +17,8 @@ class PositiveAttention(nn.Module):
             self.W_K.weight.copy_(torch.eye(dim))
 
     def forward(self, anchors, positives, valid):
-        q = F.normalize(self.W_Q(anchors), dim=-1)
-        k = F.normalize(self.W_K(positives), dim=-1)
+        q = F.normalize(self.W_Q(anchors), dim=-1, eps=1e-3)
+        k = F.normalize(self.W_K(positives), dim=-1, eps=1e-3)
         scores = (q[:, None, :] * k).sum(-1).masked_fill(~valid, -torch.inf)
         return torch.softmax(scores, dim=1)
 
@@ -30,19 +31,51 @@ def _mutual_pairs(a, b, k):
     return [(i, j) for i, row in enumerate(ab) for j in row if i in reverse[j]]
 
 
-def build_candidates(embedding, batches, positive_k, mnn_k, batch_pairs=None):
+def build_candidates(embedding, batches, positive_k, mnn_k, batch_pairs=None,
+                     spot_names=None, backend="hnsw", return_pairs=False):
     batches = np.asarray(batches)
+    if positive_k < 1 or mnn_k < 1:
+        raise ValueError("positive_k and mnn_k must be positive")
     levels = list(dict.fromkeys(batches.tolist()))
     pairs = batch_pairs or [(levels[i], levels[j]) for i in range(len(levels)) for j in range(i + 1, len(levels))]
-    groups = defaultdict(list)
+    names = np.asarray(spot_names if spot_names is not None else [str(i) for i in range(len(batches))])
+    if len(set(names.tolist())) != len(names):
+        raise ValueError("Spot names must be unique")
+    lookup = {name: i for i, name in enumerate(names)}
+    anchors, rows, pair_ids = [], [], []
     for left, right in pairs:
         li, ri = np.flatnonzero(batches == left), np.flatnonzero(batches == right)
-        for a, p in _mutual_pairs(embedding[li], embedding[ri], mnn_k):
-            groups[int(li[a])].append(int(ri[p])); groups[int(ri[p])].append(int(li[a]))
-    anchors, rows = [], []
-    for anchor, candidates in groups.items():
-        unique = np.array(list(dict.fromkeys(candidates)), dtype=int)
-        anchors.append(anchor); rows.append(unique[:positive_k])
+        if not len(li) or not len(ri):
+            raise ValueError("A prescribed correspondence batch is empty")
+        def directed(source, target):
+            k = min(mnn_k, len(target))
+            if backend == "hnsw":
+                import hnswlib
+                index = hnswlib.Index(space="l2", dim=embedding.shape[1])
+                index.init_index(max_elements=len(target), ef_construction=100, M=16)
+                index.set_ef(10)
+                index.add_items(embedding[target])
+                neighbors, _ = index.knn_query(embedding[source], k=k)
+            elif backend == "exact":
+                neighbors = NearestNeighbors(n_neighbors=k, p=2).fit(embedding[target]).kneighbors(embedding[source], return_distance=False)
+            else:
+                raise ValueError("backend must be hnsw or exact")
+            return {(names[source[i]], names[target[j]]) for i, row in enumerate(neighbors) for j in row}
+        # Preserve the executed STAligner set -> NetworkX sparse-adjacency path.
+        # Do not replace this with distance sorting or merge different batch pairs.
+        forward, reverse = directed(ri, li), directed(li, ri)
+        mutual = forward & {(b, a) for a, b in reverse}
+        graph = nx.Graph()
+        graph.add_edges_from(mutual)
+        if not graph:
+            continue
+        nodes = np.asarray(list(graph.nodes))
+        adjacency = nx.adjacency_matrix(graph).tocsr()
+        for i, anchor in enumerate(nodes):
+            neighbors = nodes[adjacency.indices[adjacency.indptr[i]:adjacency.indptr[i + 1]]]
+            anchors.append(lookup[anchor])
+            rows.append(np.asarray([lookup[n] for n in neighbors[:positive_k]], dtype=int))
+            pair_ids.append(f"{left}_{right}")
     if not anchors:
         raise RuntimeError("No cross-slice MNN correspondences were found")
     width = max(len(row) for row in rows)
@@ -50,7 +83,20 @@ def build_candidates(embedding, batches, positive_k, mnn_k, batch_pairs=None):
     valid = np.zeros((len(rows), width), dtype=bool)
     for i, row in enumerate(rows):
         positive[i, :len(row)] = row; valid[i, :len(row)] = True
-    return np.asarray(anchors, dtype=np.int64), positive, valid
+    result = (np.asarray(anchors, dtype=np.int64), positive, valid)
+    return (*result, pair_ids) if return_pairs else result
+
+
+def keyed_negatives(anchors, batches, spot_names, pair_ids, seed, epoch):
+    """Executed per-anchor draw; independent of traversal of other anchors."""
+    batches, names = np.asarray(batches), np.asarray(spot_names)
+    result = []
+    for anchor, pair in zip(anchors, pair_ids):
+        pool = np.flatnonzero(batches == batches[anchor])
+        key = f"{seed}|{epoch}|{pair}|{names[anchor]}"
+        draw = int.from_bytes(hashlib.blake2b(key.encode(), digest_size=8).digest(), "little") % len(pool)
+        result.append(pool[draw])
+    return np.asarray(result, dtype=np.int64)
 
 
 def sample_negatives(anchors, batches, rng):

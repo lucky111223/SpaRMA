@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from scipy.spatial import cKDTree
+from sklearn.neighbors import NearestNeighbors
 
 
 def spatial_edges(coordinates, batches, radius):
@@ -8,7 +8,10 @@ def spatial_edges(coordinates, batches, radius):
     edges = []
     for batch in dict.fromkeys(batches.tolist()):
         idx = np.flatnonzero(batches == batch)
-        for i, j in cKDTree(coordinates[idx]).query_pairs(radius, output_type="ndarray"):
-            edges.extend([(idx[i], idx[j]), (idx[j], idx[i])])
+        distances, neighbors = NearestNeighbors(n_neighbors=min(51, len(idx)), algorithm="ball_tree").fit(coordinates[idx]).kneighbors(coordinates[idx])
+        for i in range(len(idx)):
+            for distance, j in zip(distances[i, 1:], neighbors[i, 1:]):
+                if distance < radius:
+                    edges.append((int(idx[i]), int(idx[j])))
         edges.extend((int(i), int(i)) for i in idx)
     return torch.as_tensor(np.asarray(edges).T, dtype=torch.long)

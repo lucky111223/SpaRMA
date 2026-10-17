@@ -31,6 +31,7 @@ def main():
         cfg,
         alignment_batches=alignment_batches,
         batch_pairs=preset.batch_pairs,
+        spot_names=adata.obs_names.to_numpy(),
     )
     adata.obsm["SpaRMA"] = embedding; adata.uns["SpaRMA"] = settings
     args.output.parent.mkdir(parents=True, exist_ok=True); adata.write_h5ad(args.output)

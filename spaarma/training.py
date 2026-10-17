@@ -4,7 +4,7 @@ import random
 import numpy as np
 import torch
 from torch.nn import functional as F
-from .alignment import PositiveAttention, build_candidates, calibrate_margin, sample_negatives, weighted_triplet
+from .alignment import PositiveAttention, build_candidates, calibrate_margin, keyed_negatives, weighted_triplet
 from .model import SpatialGraphAutoencoder
 
 
@@ -23,6 +23,7 @@ class SpaRMAConfig:
     mnn_k: int = 50
     base_margin: float = 1.0
     seed: int = 0
+    mnn_backend: str = "hnsw"
 
 
 def _seed(seed):
@@ -51,11 +52,13 @@ def fit(
     device=None,
     alignment_batches=None,
     batch_pairs=None,
+    spot_names=None,
 ):
     _seed(config.seed)
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     x = torch.as_tensor(np.asarray(x), dtype=torch.float32, device=device)
     alignment_batches = batches if alignment_batches is None else alignment_batches
+    spot_names = np.asarray(spot_names if spot_names is not None else [str(i) for i in range(len(batches))])
     edge_index = edge_index.to(device)
     model = SpatialGraphAutoencoder(x.shape[1], config.hidden_dim, config.latent_dim, config.dropout).to(device)
     mask_token = torch.nn.Parameter(torch.zeros(1, x.shape[1], device=device))
@@ -68,23 +71,27 @@ def fit(
         masked = x.clone(); masked[selected] = mask_token
         _, reconstructed = model(masked, edge_index, zero_latent_rows=selected)
         loss = F.mse_loss(reconstructed[selected], x[selected])
-        optimizer.zero_grad(); loss.backward(); optimizer.step()
+        optimizer.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+        torch.nn.utils.clip_grad_norm_([mask_token], 5.0)
+        optimizer.step()
     attention = PositiveAttention(config.latent_dim).to(device)
     optimizer.add_param_group({"params": attention.parameters(), "lr": config.learning_rate, "weight_decay": config.weight_decay})
-    rng = np.random.default_rng(config.seed)
     current_margin = config.base_margin
     for epoch in range(config.joint_epochs):
         z, reconstructed = model(x, edge_index)
         if epoch % config.refresh_interval == 0:
             z_np = z.detach().cpu().numpy()
-            anchors, positives, valid_np = build_candidates(
+            anchors, positives, valid_np, pair_ids = build_candidates(
                 z_np,
                 alignment_batches,
                 config.positive_k,
                 config.mnn_k,
                 batch_pairs=batch_pairs,
+                spot_names=spot_names, backend=config.mnn_backend, return_pairs=True,
             )
-            negatives = sample_negatives(anchors, alignment_batches, rng)
+            negatives = keyed_negatives(anchors, alignment_batches, spot_names, pair_ids,
+                                        config.seed, config.pretrain_epochs + epoch)
             anchor_i = torch.as_tensor(anchors, device=device)
             positive_i = torch.as_tensor(positives, device=device)
             negative_i = torch.as_tensor(negatives, device=device)
@@ -95,12 +102,14 @@ def fit(
                 target = float((reference_gap < config.base_margin).float().mean())
                 candidate_gap = torch.linalg.vector_norm(a - n, dim=1)[:, None] - torch.linalg.vector_norm(a[:, None] - p, dim=2)
                 row_gap = candidate_gap.masked_fill(~valid, torch.inf).min(dim=1).values
-                current_margin = calibrate_margin(row_gap, torch.ones_like(row_gap, dtype=torch.bool), target, config.base_margin)
+                current_margin = calibrate_margin(row_gap, torch.ones_like(row_gap, dtype=torch.bool), target, 1.0)
         a, p, n = z[anchor_i], z[positive_i], z[negative_i]
         weights = attention(a, p, valid)
         alignment, _ = weighted_triplet(a, p, n, valid, weights, current_margin)
         loss = F.mse_loss(reconstructed, x) + alignment
-        optimizer.zero_grad(); loss.backward(); torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0); optimizer.step()
+        optimizer.zero_grad(); loss.backward()
+        torch.nn.utils.clip_grad_norm_(list(model.parameters()) + list(attention.parameters()), 5.0)
+        optimizer.step()
     model.eval()
     with torch.no_grad():
         embedding, _ = model.encode(x, edge_index)

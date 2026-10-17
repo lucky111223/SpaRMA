@@ -8,6 +8,10 @@ Stage I replaces complete spot profiles with a learned mask token, zeros the cor
 
 ## Installation
 
+Implementation details and the scope of the public-release validation are in
+[implementation alignment](docs/implementation_alignment.md). The small-input
+tests do not constitute a rerun of the manuscript experiments.
+
 ```bash
 conda create -n spaarma python=3.10
 conda activate spaarma

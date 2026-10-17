@@ -12,6 +12,8 @@ license = {file = "LICENSE"}
 dependencies = [
   "anndata>=0.9",
   "numpy>=1.23",
+  "networkx>=2.8",
+  "hnswlib>=0.7",
   "scipy>=1.9",
   "scikit-learn>=1.2",
   "torch>=2.0",
